@@ -1,2 +1,2 @@
-# theechoofservitude
-Godot Game The Echo Of Servitude
+# The Echo of Servitude
+Godot Game The Echo Of Servitude.
