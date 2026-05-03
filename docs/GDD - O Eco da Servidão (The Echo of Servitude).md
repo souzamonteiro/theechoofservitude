@@ -161,8 +161,6 @@ Esta é a mecânica central. Ela conecta a jogabilidade à narrativa.
 
 ## 7. Pipeline de Produção Recomendado
 
-Este é o passo a passo que sugiro para você começar a produzir o jogo de forma eficiente:
-
 1.  **Dia 1-2 (Prototipagem):**
     - Crie um projeto Godot 4.3.
     - Configure o plugin **Mixamo Animation Retargeter** .
