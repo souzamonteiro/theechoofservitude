@@ -1,0 +1,48 @@
+[gd_scene load_steps=7 format=3 uid="uid://dme1ubyslmvw8"]
+
+[ext_resource type="PackedScene" uid="uid://c16l56642p857" path="res://scenes/Elara.tscn" id="1_elara"]
+
+[sub_resource type="Sky" id="Sky_world01"]
+
+[sub_resource type="Environment" id="Environment_world01"]
+background_mode = 2
+sky = SubResource("Sky_world01")
+ambient_light_source = 3
+ambient_light_energy = 0.3
+fog_enabled = true
+fog_density = 0.002
+fog_aerial_perspective = 0.5
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
+albedo_color = Color(0.29, 0.22, 0.16, 1)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
+material = SubResource("StandardMaterial3D_ground")
+size = Vector2(700, 700)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ground"]
+size = Vector3(700, 2, 700)
+
+[node name="World" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_world01")
+
+[node name="Ground" type="MeshInstance3D" parent="."]
+mesh = SubResource("PlaneMesh_ground")
+
+[node name="GroundCollider" type="StaticBody3D" parent="."]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="GroundCollider"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
+shape = SubResource("BoxShape3D_ground")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866, -0.321, 0.383, 0, 0.766, 0.643, -0.5, -0.557, 0.663, 0, 250, 0)
+light_color = Color(1, 0.97, 0.88, 1)
+light_energy = 1.8
+shadow_enabled = true
+directional_shadow_max_distance = 500.0
+
+[node name="Elara" parent="." instance=ExtResource("1_elara")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.904933, 0.004401, 0)

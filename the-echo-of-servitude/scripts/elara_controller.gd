@@ -1,109 +1,195 @@
-extends Node3D
+extends CharacterBody3D
+## ElaraController – third-person character controller.
+##
+## Vertical position is handled ENTIRELY by Godot physics (gravity + CharacterBody3D).
+## No manual Y-axis manipulation exists anywhere in this script.
+##
+## Controls:
+##   WASD / Arrow keys  – walk     Shift – run    Space – jump    C – crouch
+##   Mouse left-click   – capture mouse for camera    Esc – release
 
-const WALK_SPEED := 2.2
-const RUN_SPEED := 4.8
-const TURN_SPEED := 10.0
-const CAMERA_LERP_SPEED := 6.0
-const CAMERA_OFFSET := Vector3(0.0, 1.6, 3.8)
-const LOOK_AT_OFFSET := Vector3(0.0, 0.9, 0.0)
-const TARGET_HEIGHT_METERS := 1.7
+const WALK_SPEED      := 3.5
+const RUN_SPEED       := 7.0
+const JUMP_VELOCITY   := 6.0
+const GRAVITY         := -20.0
+const CAM_SENSITIVITY := 0.003
+const TURN_SPEED      := 12.0
+const DECELERATION    := 18.0
+@export_range(0.0, 0.30, 0.01) var idle_height_percent := 0.10
+@export var elara_visual_height_m := 1.7
 
-@onready var player: Node3D = $Player
-@onready var elara: Node3D = $Player/Elara
-@onready var animation_player: AnimationPlayer = $Player/Elara/AnimationPlayer
-@onready var camera: Camera3D = $Camera3D
+const ANIM_IDLE   := "Elara-Standing"
+const ANIM_WALK   := "Elara-Walking"
+const ANIM_RUN    := "Elara-Ranning"
+const ANIM_JUMP   := "Elara-Jumping"
+const ANIM_CROUCH := "Elara-Squat"
 
-var _current_animation := ""
+@onready var model      : Node3D      = $ElaraModel
+@onready var camera_arm : SpringArm3D = $CameraArm
+@onready var camera     : Camera3D    = $CameraArm/Camera3D
+
+var _anim             : AnimationPlayer = null
+var _mouse_captured   : bool = false
+var _current_anim     : String = ""
+# Locked local transform of the visual mesh — set once in _ready and restored
+# every physics frame so animation clips cannot move the mesh node itself.
+var _model_local_pos  : Vector3 = Vector3.ZERO
+var _model_local_scale: Vector3 = Vector3.ONE
+
 
 func _ready() -> void:
-	_ensure_input_actions()
-	_fit_elara_height(TARGET_HEIGHT_METERS)
-	_play_animation("Elara-Standing")
-	camera.current = true
-	camera.global_position = player.global_position + CAMERA_OFFSET
-	camera.look_at(player.global_position + LOOK_AT_OFFSET, Vector3.UP)
+	# Capture the artist-positioned local transform before any animation plays.
+	_model_local_pos   = model.position
+	_model_local_scale = model.scale
 
-
-func _physics_process(delta: float) -> void:
-	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
-	var is_moving := input_dir.length() > 0.01
-
-	if is_moving:
-		var move_dir := Vector3(input_dir.x, 0.0, input_dir.y).normalized()
-		var speed := RUN_SPEED if Input.is_action_pressed("move_run") else WALK_SPEED
-		player.global_position += move_dir * speed * delta
-
-		var target_yaw := atan2(move_dir.x, move_dir.z)
-		player.rotation.y = lerp_angle(player.rotation.y, target_yaw, TURN_SPEED * delta)
-
-		if speed == RUN_SPEED:
-			_play_animation("Elara-Ranning")
-		else:
-			_play_animation("Elara-Walking")
+	_anim = _find_anim_player(model)
+	if _anim == null:
+		push_warning("ElaraController: AnimationPlayer not found inside model.")
 	else:
-		_play_animation("Elara-Standing")
+		_strip_scale_tracks()
+		_force_loop(ANIM_IDLE)
+		_force_loop(ANIM_WALK)
+		_force_loop(ANIM_RUN)
+		_play_anim(ANIM_IDLE)
 
-	_update_camera(delta)
+	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+
+# ── Input ─────────────────────────────────────────────────────────────────────
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+			_mouse_captured = true
+	if event is InputEventKey:
+		if event.keycode == KEY_ESCAPE:
+			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+			_mouse_captured = false
+	if _mouse_captured and event is InputEventMouseMotion:
+		camera_arm.rotation.y -= event.relative.x * CAM_SENSITIVITY
+		camera_arm.rotation.x = clampf(
+			camera_arm.rotation.x - event.relative.y * CAM_SENSITIVITY,
+			-PI / 3.0, -0.05
+		)
 
 
-func _update_camera(delta: float) -> void:
-	var target_position := player.global_position + CAMERA_OFFSET
-	camera.global_position = camera.global_position.lerp(target_position, min(1.0, CAMERA_LERP_SPEED * delta))
-	camera.look_at(player.global_position + LOOK_AT_OFFSET, Vector3.UP)
+# ── Physics loop ──────────────────────────────────────────────────────────────
+func _physics_process(delta: float) -> void:
+	# Lock the visual mesh local transform so animation clips cannot shift
+	# the node — only bones should move.
+	model.position = _model_local_pos + Vector3(0.0, _get_idle_visual_offset(), 0.0)
+	model.scale    = _model_local_scale
+
+	# Gravity — CharacterBody3D floor detection keeps Elara grounded.
+	if not is_on_floor():
+		velocity.y += GRAVITY * delta
+
+	# Horizontal input
+	var move := Vector2.ZERO
+	if _key(&"move_forward", KEY_W, KEY_UP):    move.y -= 1.0
+	if _key(&"move_back",    KEY_S, KEY_DOWN):  move.y += 1.0
+	if _key(&"move_left",    KEY_A, KEY_LEFT):  move.x -= 1.0
+	if _key(&"move_right",   KEY_D, KEY_RIGHT): move.x += 1.0
+
+	var running := Input.is_key_pressed(KEY_SHIFT)
+	var speed   := RUN_SPEED if running else WALK_SPEED
+
+	if move != Vector2.ZERO:
+		move = move.normalized()
+		var yaw   := camera_arm.rotation.y
+		var fwd   := Vector3(-sin(yaw), 0.0, -cos(yaw))
+		var right := Vector3( cos(yaw), 0.0, -sin(yaw))
+		var dir   := (fwd * (-move.y) + right * move.x).normalized()
+
+		velocity.x = dir.x * speed
+		velocity.z = dir.z * speed
+		model.rotation.y = lerp_angle(
+			model.rotation.y, atan2(dir.x, dir.z), TURN_SPEED * delta
+		)
+
+		_play_anim(
+			ANIM_JUMP if not is_on_floor() else (ANIM_RUN if running else ANIM_WALK)
+		)
+	else:
+		velocity.x = move_toward(velocity.x, 0.0, DECELERATION * delta)
+		velocity.z = move_toward(velocity.z, 0.0, DECELERATION * delta)
+		if is_on_floor():
+			_play_anim(ANIM_CROUCH if Input.is_key_pressed(KEY_C) else ANIM_IDLE)
+
+	if Input.is_action_just_pressed("ui_accept") and is_on_floor():
+		velocity.y = JUMP_VELOCITY
+		_play_anim(ANIM_JUMP)
+
+	move_and_slide()
+
+	# Restart clips that finished (safety for non-looped imports).
+	if _anim != null and not _anim.is_playing():
+		if move != Vector2.ZERO:
+			_play_anim(ANIM_RUN if running else ANIM_WALK)
+		else:
+			_play_anim(ANIM_IDLE)
 
 
-func _fit_elara_height(target_height: float) -> void:
-	var skeleton := elara.get_node_or_null("Node/Armature/Skeleton3D") as Skeleton3D
-	if skeleton == null:
+# ── Animation helpers ─────────────────────────────────────────────────────────
+func _play_anim(anim_name: String) -> void:
+	if _anim == null or _current_anim == anim_name:
 		return
+	if _anim.has_animation(anim_name):
+		_anim.play(anim_name)
+		_current_anim = anim_name
+	else:
+		push_warning("ElaraController: animation '%s' not found." % anim_name)
 
-	var min_y := INF
-	var max_y := -INF
-	for i in skeleton.get_bone_count():
-		var pose: Transform3D = skeleton.get_bone_global_pose(i)
-		var p: Vector3 = skeleton.global_transform * pose.origin
-		min_y = min(min_y, p.y)
-		max_y = max(max_y, p.y)
 
-	var current_height := max_y - min_y
-	if current_height <= 0.001:
+func _force_loop(anim_name: String) -> void:
+	if _anim == null or not _anim.has_animation(anim_name):
 		return
+	var clip := _anim.get_animation(anim_name)
+	if clip:
+		clip.loop_mode = Animation.LOOP_LINEAR
 
-	var s := target_height / current_height
-	elara.scale = Vector3.ONE * s
 
-
-func _play_animation(animation_name: String) -> void:
-	if _current_animation == animation_name:
+func _strip_scale_tracks() -> void:
+	## Removes only TYPE_SCALE_3D and legacy ":scale" property tracks.
+	## Position/rotation bone tracks are preserved so animations play correctly.
+	## The mesh node's own transform is locked each frame via _model_local_pos.
+	if _anim == null:
 		return
-	if not animation_player.has_animation(animation_name):
-		return
-	_current_animation = animation_name
-	animation_player.play(animation_name)
-
-
-func _ensure_input_actions() -> void:
-	_ensure_action("move_forward", [KEY_W, KEY_UP])
-	_ensure_action("move_back", [KEY_S, KEY_DOWN])
-	_ensure_action("move_left", [KEY_A, KEY_LEFT])
-	_ensure_action("move_right", [KEY_D, KEY_RIGHT])
-	_ensure_action("move_run", [KEY_SHIFT])
-
-
-func _ensure_action(action: StringName, keycodes: Array[Key]) -> void:
-	if not InputMap.has_action(action):
-		InputMap.add_action(action)
-
-	for keycode in keycodes:
-		if _action_has_key(action, keycode):
+	for anim_name in _anim.get_animation_list():
+		var clip := _anim.get_animation(anim_name)
+		if clip == null:
 			continue
-		var event := InputEventKey.new()
-		event.keycode = keycode
-		InputMap.action_add_event(action, event)
+		for i in range(clip.get_track_count() - 1, -1, -1):
+			if clip.track_get_type(i) == Animation.TYPE_SCALE_3D:
+				clip.remove_track(i)
+				continue
+			if str(clip.track_get_path(i)).ends_with(":scale"):
+				clip.remove_track(i)
 
 
-func _action_has_key(action: StringName, keycode: Key) -> bool:
-	for event in InputMap.action_get_events(action):
-		if event is InputEventKey and event.keycode == keycode:
-			return true
-	return false
+# ── Input helper ──────────────────────────────────────────────────────────────
+func _key(action: StringName, k1: Key, k2: Key = KEY_NONE) -> bool:
+	if InputMap.has_action(action) and Input.is_action_pressed(action):
+		return true
+	if Input.is_key_pressed(k1):
+		return true
+	return k2 != KEY_NONE and Input.is_key_pressed(k2)
+
+
+func _find_anim_player(node: Node) -> AnimationPlayer:
+	if node is AnimationPlayer:
+		return node as AnimationPlayer
+	for child in node.get_children():
+		var r := _find_anim_player(child)
+		if r:
+			return r
+	return null
+
+
+func _get_idle_visual_offset() -> float:
+	# Visual-only adjustment for idle pose mismatch.
+	# Physics body/collider are untouched, so grounding remains controlled by Godot physics.
+	if _current_anim != ANIM_IDLE:
+		return 0.0
+	if not is_on_floor():
+		return 0.0
+	return -(elara_visual_height_m * idle_height_percent)
