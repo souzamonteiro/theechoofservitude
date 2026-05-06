@@ -12,13 +12,19 @@ const WALK_SPEED      := 3.5
 const RUN_SPEED       := 7.0
 const JUMP_VELOCITY   := 6.0
 const GRAVITY         := -20.0
-const CAM_SENSITIVITY := 0.003
 const TURN_SPEED      := 12.0
 const DECELERATION    := 18.0
-@export_range(0.0, 0.30, 0.01) var idle_height_percent := 0.10
+@export_range(0.001, 0.02, 0.001) var camera_sensitivity := 0.003
+@export_range(1.0, 12.0, 0.1) var camera_distance := 4.5
+@export_range(1.0, 12.0, 0.1) var camera_min_distance := 2.0
+@export_range(1.0, 20.0, 0.1) var camera_max_distance := 7.0
+@export_range(0.05, 2.0, 0.05) var camera_zoom_step := 0.30
+@export_range(-1.50, -0.05, 0.01) var camera_pitch_min := -1.05
+@export_range(-1.50, -0.01, 0.01) var camera_pitch_max := -0.05
+@export_range(0.0, 0.30, 0.01) var idle_height_percent := 0.00
 @export var elara_visual_height_m := 1.7
 
-const ANIM_IDLE   := "Elara-Standing"
+const ANIM_IDLE   := "Elara-Idle"
 const ANIM_WALK   := "Elara-Walking"
 const ANIM_RUN    := "Elara-Ranning"
 const ANIM_JUMP   := "Elara-Jumping"
@@ -51,6 +57,7 @@ func _ready() -> void:
 		_force_loop(ANIM_WALK)
 		_force_loop(ANIM_RUN)
 		_play_anim(ANIM_IDLE)
+	_apply_camera_distance()
 
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 
@@ -60,16 +67,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 			_mouse_captured = true
+		if event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			add_camera_distance(-camera_zoom_step)
+		if event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			add_camera_distance(camera_zoom_step)
 	if event is InputEventKey:
 		if event.keycode == KEY_ESCAPE:
 			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 			_mouse_captured = false
 	if _mouse_captured and event is InputEventMouseMotion:
-		camera_arm.rotation.y -= event.relative.x * CAM_SENSITIVITY
-		camera_arm.rotation.x = clampf(
-			camera_arm.rotation.x - event.relative.y * CAM_SENSITIVITY,
-			-PI / 3.0, -0.05
-		)
+		add_camera_pan(-event.relative.x * camera_sensitivity, -event.relative.y * camera_sensitivity)
 
 
 # ── Physics loop ──────────────────────────────────────────────────────────────
@@ -92,6 +99,7 @@ func _physics_process(delta: float) -> void:
 
 	var running := Input.is_key_pressed(KEY_SHIFT)
 	var speed   := RUN_SPEED if running else WALK_SPEED
+	var jump_anim_playing := _is_jump_anim_playing()
 
 	if move != Vector2.ZERO:
 		move = move.normalized()
@@ -106,13 +114,14 @@ func _physics_process(delta: float) -> void:
 			model.rotation.y, atan2(dir.x, dir.z), TURN_SPEED * delta
 		)
 
-		_play_anim(
-			ANIM_JUMP if not is_on_floor() else (ANIM_RUN if running else ANIM_WALK)
-		)
+		if not jump_anim_playing:
+			_play_anim(
+				ANIM_JUMP if not is_on_floor() else (ANIM_RUN if running else ANIM_WALK)
+			)
 	else:
 		velocity.x = move_toward(velocity.x, 0.0, DECELERATION * delta)
 		velocity.z = move_toward(velocity.z, 0.0, DECELERATION * delta)
-		if is_on_floor():
+		if is_on_floor() and not jump_anim_playing:
 			_play_anim(ANIM_CROUCH if Input.is_key_pressed(KEY_C) else ANIM_IDLE)
 
 	if Input.is_action_just_pressed("ui_accept") and is_on_floor():
@@ -123,7 +132,9 @@ func _physics_process(delta: float) -> void:
 
 	# Restart clips that finished (safety for non-looped imports).
 	if _anim != null and not _anim.is_playing():
-		if move != Vector2.ZERO:
+		if not is_on_floor():
+			_play_anim(ANIM_JUMP)
+		elif move != Vector2.ZERO:
 			_play_anim(ANIM_RUN if running else ANIM_WALK)
 		else:
 			_play_anim(ANIM_IDLE)
@@ -193,3 +204,28 @@ func _get_idle_visual_offset() -> float:
 	if not is_on_floor():
 		return 0.0
 	return -(elara_visual_height_m * idle_height_percent)
+
+
+func _is_jump_anim_playing() -> bool:
+	return _anim != null and _current_anim == ANIM_JUMP and _anim.is_playing()
+
+
+func add_camera_pan(delta_yaw: float, delta_pitch: float) -> void:
+	camera_arm.rotation.y += delta_yaw
+	camera_arm.rotation.x = clampf(camera_arm.rotation.x + delta_pitch, camera_pitch_min, camera_pitch_max)
+
+
+func set_camera_distance(distance: float) -> void:
+	camera_distance = distance
+	_apply_camera_distance()
+
+
+func add_camera_distance(delta: float) -> void:
+	set_camera_distance(camera_distance + delta)
+
+
+func _apply_camera_distance() -> void:
+	if camera_max_distance < camera_min_distance:
+		camera_max_distance = camera_min_distance
+	camera_distance = clampf(camera_distance, camera_min_distance, camera_max_distance)
+	camera_arm.spring_length = camera_distance
