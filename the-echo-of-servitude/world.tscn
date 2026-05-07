@@ -1,9 +1,26 @@
-[gd_scene load_steps=6 format=3 uid="uid://dme1ubyslmvw8"]
+[gd_scene format=3 uid="uid://dme1ubyslmvw8"]
 
 [ext_resource type="PackedScene" uid="uid://c16l56642p857" path="res://scenes/Elara.tscn" id="1_elara"]
+[ext_resource type="Texture2D" uid="uid://bbsdnbiyyo5h6" path="res://assets/textures/sky/evening_road_01_puresky_1k.hdr" id="1_hiqwa"]
 [ext_resource type="Material" uid="uid://dnav1ecnwf5w8" path="res://materials/grass.tres" id="2_n5701"]
+[ext_resource type="Script" uid="uid://cblgos60sry6u" path="res://addons/proton_scatter/src/scatter.gd" id="3_k3n1d"]
+[ext_resource type="Script" uid="uid://tygmryre4g05" path="res://addons/proton_scatter/src/stack/modifier_stack.gd" id="4_2o6r5"]
+[ext_resource type="Script" uid="uid://dnqljufo7ho71" path="res://addons/proton_scatter/src/modifiers/base_modifier.gd" id="5_70uel"]
+[ext_resource type="Script" uid="uid://brtb5kpa633dv" path="res://addons/proton_scatter/src/modifiers/create_inside_random.gd" id="6_hiqwa"]
+[ext_resource type="Script" uid="uid://pfojui1r8nle" path="res://addons/proton_scatter/src/modifiers/randomize_transforms.gd" id="7_2u3nc"]
+[ext_resource type="Script" uid="uid://byo5rxp7p0den" path="res://addons/proton_scatter/src/modifiers/relax.gd" id="8_udxuc"]
+[ext_resource type="Script" uid="uid://qphmdr50cd8y" path="res://addons/proton_scatter/src/modifiers/project_on_geometry.gd" id="9_ikiii"]
+[ext_resource type="Script" uid="uid://cx0bmp7kdc8q3" path="res://addons/proton_scatter/src/scatter_item.gd" id="10_cbp6q"]
+[ext_resource type="Script" uid="uid://bpy28wch0nrhf" path="res://addons/proton_scatter/src/scatter_shape.gd" id="11_26xuy"]
+[ext_resource type="Script" uid="uid://ddmv2cr6nq2ge" path="res://addons/proton_scatter/src/shapes/box_shape.gd" id="12_bc84e"]
+[ext_resource type="Script" uid="uid://cf6loi8s6gbiq" path="res://addons/proton_scatter/src/shapes/sphere_shape.gd" id="13_70uel"]
+[ext_resource type="PackedScene" uid="uid://bpygugknlq1if" path="res://assets/models/maple_tree.glb" id="14_hiqwa"]
+
+[sub_resource type="PanoramaSkyMaterial" id="PanoramaSkyMaterial_2u3nc"]
+panorama = ExtResource("1_hiqwa")
 
 [sub_resource type="Sky" id="Sky_world01"]
+sky_material = SubResource("PanoramaSkyMaterial_2u3nc")
 
 [sub_resource type="Environment" id="Environment_world01"]
 background_mode = 2
@@ -17,28 +34,104 @@ fog_aerial_perspective = 0.5
 [sub_resource type="BoxShape3D" id="BoxShape3D_ground"]
 size = Vector3(700, 2, 700)
 
-[node name="World" type="Node3D"]
+[sub_resource type="Resource" id="Resource_wukud"]
+script = ExtResource("6_hiqwa")
+amount = 750
+restrict_height = true
+reference_frame = 1
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+[sub_resource type="Resource" id="Resource_il2jm"]
+script = ExtResource("7_2u3nc")
+position = Vector3(0.15, 0.15, 0.15)
+rotation = Vector3(5, 360, 5)
+scale = Vector3(0.1, 0.1, 0.1)
+reference_frame = 2
+
+[sub_resource type="Resource" id="Resource_wjb0r"]
+script = ExtResource("8_udxuc")
+offset_step = 0.2
+consecutive_step_multiplier = 0.75
+restrict_height = true
+
+[sub_resource type="Resource" id="Resource_mc2jv"]
+script = ExtResource("9_ikiii")
+ray_length = 5.0
+ray_offset = 5.0
+remove_points_on_miss = false
+
+[sub_resource type="Resource" id="Resource_bo7i5"]
+script = ExtResource("4_2o6r5")
+stack = Array[ExtResource("5_70uel")]([SubResource("Resource_wukud"), SubResource("Resource_il2jm"), SubResource("Resource_wjb0r"), SubResource("Resource_mc2jv")])
+
+[sub_resource type="Resource" id="Resource_4h6ng"]
+script = ExtResource("12_bc84e")
+size = Vector3(100, 1, 100)
+metadata/_custom_type_script = "uid://ddmv2cr6nq2ge"
+
+[sub_resource type="Resource" id="Resource_2u3nc"]
+script = ExtResource("13_70uel")
+radius = 7.286701
+metadata/_custom_type_script = "uid://cf6loi8s6gbiq"
+
+[node name="World" type="Node3D" unique_id=2051062719]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=586475941]
 environment = SubResource("Environment_world01")
 
-[node name="GroundCollider" type="StaticBody3D" parent="."]
+[node name="GroundCollider" type="StaticBody3D" parent="." unique_id=547518984]
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="GroundCollider"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="GroundCollider" unique_id=237860609]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
 shape = SubResource("BoxShape3D_ground")
 
-[node name="Sun" type="DirectionalLight3D" parent="."]
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=408489688]
 transform = Transform3D(0.866, -0.321, 0.383, 0, 0.766, 0.643, -0.5, -0.557, 0.663, 0, 250, 0)
 light_color = Color(1, 0.97, 0.88, 1)
 light_energy = 1.8
 shadow_enabled = true
 directional_shadow_max_distance = 500.0
 
-[node name="Elara" parent="." instance=ExtResource("1_elara")]
+[node name="Elara" parent="." unique_id=1975581397 instance=ExtResource("1_elara")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.904933, -0.0206407, 0)
 
-[node name="Ground" type="CSGBox3D" parent="."]
+[node name="Ground" type="CSGBox3D" parent="." unique_id=1965491470]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.503797, 0)
 material_override = ExtResource("2_n5701")
 size = Vector3(1000, 1, 1000)
+
+[node name="ProtonScatter" type="Node3D" parent="." unique_id=1164338786]
+script = ExtResource("3_k3n1d")
+modifier_stack = SubResource("Resource_bo7i5")
+Performance/use_chunks = true
+Performance/chunk_dimensions = Vector3(15, 15, 15)
+metadata/_custom_type_script = "uid://cblgos60sry6u"
+
+[node name="BushScatterItem" type="Node3D" parent="ProtonScatter" unique_id=535487155]
+script = ExtResource("10_cbp6q")
+proportion = 10000
+path = "uid://b8abs8me7ckgo"
+
+[node name="RockScatterItem" type="Node3D" parent="ProtonScatter" unique_id=2067522609]
+script = ExtResource("10_cbp6q")
+proportion = 200
+path = "uid://bltmr2xgs8nq1"
+
+[node name="TreeScatterItem" type="Node3D" parent="ProtonScatter" unique_id=2133081015]
+script = ExtResource("10_cbp6q")
+proportion = 5000
+source_scale_multiplier = 3.0
+path = "uid://caqxfqurbp3ku"
+
+[node name="ScatterShape" type="Node3D" parent="ProtonScatter" unique_id=1484388235]
+transform = Transform3D(1, 0, -2.98023e-08, 0, 1, 0, 2.98023e-08, 0, 1, -27.493362, 0, -12.211044)
+script = ExtResource("11_26xuy")
+shape = SubResource("Resource_4h6ng")
+
+[node name="NegativeScatterShape" type="Node3D" parent="ProtonScatter" unique_id=58833677]
+transform = Transform3D(1, 0, -2.98023e-08, 0, 1, 0, 2.98023e-08, 0, 1, -27.493362, 0, -12.211044)
+script = ExtResource("11_26xuy")
+negative = true
+shape = SubResource("Resource_2u3nc")
+
+[node name="MapleTree" parent="ProtonScatter" unique_id=2098256954 instance=ExtResource("14_hiqwa")]
+transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, -26.028133, -0.11120319, -11.464235)
