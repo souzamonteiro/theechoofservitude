@@ -1,27 +1,27 @@
-[gd_scene format=3 uid="uid://c16l56642p857"]
+[gd_scene load_steps=4 format=3 uid="uid://c16l56642p857"]
 
-[ext_resource type="Script" uid="uid://doriw1bv3of7i" path="res://scripts/elara_controller.gd" id="1_ctrl"]
+[ext_resource type="Script" path="res://scripts/elara_controller.gd" id="1_ctrl"]
 [ext_resource type="PackedScene" uid="uid://cus3wlndhgel3" path="res://assets/animations/Elara-Animations/Elara-Animations.glb" id="2_model"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_elara"]
 radius = 0.3
-height = 1.7653654
+height = 1.76537
 
-[node name="Elara" type="CharacterBody3D" unique_id=2048620538]
+[node name="Elara" type="CharacterBody3D"]
 collision_layer = 2
 floor_snap_length = 0.3
 safe_margin = 0.04
 script = ExtResource("1_ctrl")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=355942679]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8874103, 0)
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.88741, 0)
 shape = SubResource("CapsuleShape3D_elara")
 
-[node name="ElaraModel" parent="." unique_id=1963608856 instance=ExtResource("2_model")]
+[node name="ElaraModel" parent="." instance=ExtResource("2_model")]
 transform = Transform3D(0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.01, 0, 0.85, 0)
 
-[node name="CameraArm" type="SpringArm3D" parent="." unique_id=968720203]
+[node name="CameraArm" type="SpringArm3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.9659, -0.2588, 0, 0.2588, 0.9659, 0, 1.6, 0)
 spring_length = 4.5
 
-[node name="Camera3D" type="Camera3D" parent="CameraArm" unique_id=33952564]
+[node name="Camera3D" type="Camera3D" parent="CameraArm"]
